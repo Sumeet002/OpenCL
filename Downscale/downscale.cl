@@ -1,0 +1,22 @@
+//Angular to Linear Image Transformation kernel
+
+__constant sampler_t sampler = CLK_NORMALIZED_COORDS_TRUE | CLK_ADDRESS_CLAMP | CLK_FILTER_LINEAR;
+ 
+
+
+
+__kernel void downscale(__read_only image2d_t In_image , __write_only image2d_t Out_image){
+	
+	const float heightnormalizedfactor = (1.0f/270);
+	const float widthnormalizedfactor = (1.0f/480);
+	int2 out_pos=(int2)(get_global_id(0),get_global_id(1));
+	float2 in_pos; 
+	float4 value;
+	in_pos = convert_float2(out_pos) * (float2)(widthnormalizedfactor,heightnormalizedfactor);
+	value = read_imagef(In_image, sampler, in_pos);
+	
+ 	write_imagef(Out_image,out_pos,value);
+	
+}
+
+
