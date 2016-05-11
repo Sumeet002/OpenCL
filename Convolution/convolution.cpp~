@@ -1,6 +1,6 @@
 #include "ocl.h"
 #include <opencv2/opencv.hpp>
-#define KERNEL_SOURCE_PATH "./convolution.cl"
+#define KERNEL_SOURCE_PATH "./naive_convolution.cl"
 #define PI_ 3.14 
 
 using namespace cv;
@@ -13,7 +13,7 @@ float* createGaussianKernel(uint32_t size,float sigma)
     float sum = 0;
     
     //allocate and create the gaussian kernel
-    ret = malloc(sizeof(float) * size * size);
+    ret = (float *)malloc(sizeof(float) * size * size);
     for(x = 0; x < size; x++)
     {
         for(y=0; y < size; y++)
@@ -92,17 +92,22 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	status = clSetKernelArg(conv_kernel,0,sizeof(cl_mem), (void*) &dsrc_img_);
   	STATUSCHKMSG("in arg 1 setting");
 	
-	status = clSetKernelArg(conv_kernel,0,sizeof(cl_mem), (void*) &dout_img_);
+	status = clSetKernelArg(conv_kernel,1,sizeof(cl_mem), (void*) &dout_img_);
   	STATUSCHKMSG("in arg 2 setting");
 	
-	status = clSetKernelArg(conv_kernel,0,sizeof(cl_mem), (void*) &dconv_mat);
-  	STATUSCHKMSG("in arg 3 setting");
+	status = clSetKernelArg(conv_kernel,2,sizeof(cl_mem), (void*) &dconv_mat);
+		
+	STATUSCHKMSG("in arg 3 setting");
 
 	// enqueue a kernel run call
   	size_t globalThreads[] = { NUMTHREAD };       // number of global items in work dimension 
   	size_t localThreads[] = { GROUP_SIZE }; 	// number of work item per group
-  	status = clEnqueueNDRangeKernel( params.queue,conv_kernel,1, NULL, globalThreads, localThreads,0,NULL,NULL);
+	size_t globalWorkItemSize = img_sz*sizeof(cl_uchar);
+  	//status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, globalThreads, localThreads,0,NULL,NULL);
+	status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, &globalWorkItemSize ,NULL,0,NULL,NULL);	
+	
   	STATUSCHKMSG("kernel enqueue");
+	
 
 	status = clFinish(params.queue);
   	STATUSCHKMSG("clFinish");
@@ -112,6 +117,8 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
 	// read output result
   	status = clEnqueueReadBuffer(params.queue, dout_img_, CL_TRUE, 0,img_sz*sizeof(cl_uchar),out_img_, 0, NULL, &events[0]);
   	STATUSCHKMSG("read output");
+
+	cout << img_sz << endl;
  
 	// wait for read buffer to complete the read of output produce by kernel
   	status = clWaitForEvents(1, &events[0]);
@@ -124,6 +131,7 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	clReleaseCommandQueue(params.queue);
   	clReleaseContext(params.context);
 	
+	cout << "end" << endl;
 
 
 }//end_of_opencl_routine
@@ -132,25 +140,26 @@ int main(){
 
 	//Input image
 	Mat src_img;
-	src_img = imread("sample.jpg",-1);
+	src_img = imread("sample.jpg",CV_LOAD_IMAGE_GRAYSCALE);
+	
 
 	//Resize Image
 	int scale = 2 ;
 	int img_sz;
 	Size size(src_img.cols/scale,src_img.rows/scale);
 	resize(src_img,src_img,size);
-	img_sz = (src_img.cols/scale)*(src_img.rows/scale);
-
+	img_sz = src_img.cols*src_img.rows;
+	
 
 	//Display input Image
 	imshow("Input Image" , src_img);
 	waitKey(30);
 
-	Mat out_img;
-	out_img.create(src_img.size(),src_img.type());
+	Mat out_img(size,CV_8UC1,Scalar(0));
 
-	uchar *src_img_ = src_img.ptr<uchar>(0);
-	uchar *out_img_ = out_img.ptr<uchar>(0);
+	unsigned char *src_img_ = src_img.ptr<unsigned char>(0);
+	unsigned char *out_img_ = out_img.ptr<unsigned char>(0);
+	
 
 	int conv_mat_sz = 3 ;
 	float conv_mat_sigma = 1.0;
@@ -162,9 +171,11 @@ int main(){
     	char deviceNameLen = BUFFER_SIZE;
 	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,conv_mat_sz,deviceName,deviceNameLen);
 
-
+	
+	
 	//Display input Image
 	imshow("Output Image" , out_img);
+	waitKey(30);
 	while(1);
 	
 	return 0;

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo "Convolution example"
+echo "OpenCL Convolution example"
 
-echo "Building the OpenCV example for the Beaglebone"
-g++ -O2  boneCV.cpp `pkg-config --libs opencv` -o boneCV
+echo "Building the OpenCL convolution example "
+g++ -O2  convolution.cpp `pkg-config --libs opencv` -lOpenCL -o convolution
 
 echo "Finished"

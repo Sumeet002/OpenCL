@@ -1,0 +1,39 @@
+#define HALF_FILTER_SIZE 1
+#define IMAGE_W 960
+__kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout_img_, const __global float* dconv_mat){
+
+
+	int row_offset = get_global_id(1)*IMAGE_W*4;
+	int index = 4*get_global_id(0) + row_offset;
+
+	int fIndex = 0;
+	float sumR = 0.0;
+	float sumG = 0.0;
+	float sumB = 0.0;
+	float sumA = 0.0;
+
+	for(int r = HALF_FILTER_SIZE; r < HALF_FILTER_SIZE ; r++){
+
+		int curRow = index + r*IMAGE_W*4;
+		for(int c= HALF_FILTER_SIZE ; c < HALF_FILTER_SIZE ; c++,fIndex+=4){
+
+			int offset = c * 4;
+				
+			sumR += dsrc_img_[ curRow + offset   ] * dconv_mat[ fIndex   ]; 
+			sumG += dsrc_img_[ curRow + offset+1 ] * dconv_mat[ fIndex+1 ];
+			sumB += dsrc_img_[ curRow + offset+2 ] * dconv_mat[ fIndex+2 ]; 
+			sumA += dsrc_img_[ curRow + offset+3 ] * dconv_mat[ fIndex+3 ];
+
+		}
+
+	}
+	
+
+	dout_img_[ index     ] = sumR;
+	dout_img_[ index + 1 ] = sumG;
+	dout_img_[ index + 2 ] = sumB;
+	dout_img_[ index + 3 ] = sumA;
+
+
+
+}
