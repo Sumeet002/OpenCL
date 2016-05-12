@@ -118,8 +118,7 @@ void setOClExeEnv(oclEnvParams *params){
 				
 
 				// create command queue
-                        	params->queue = clCreateCommandQueue( params->context, (params->devices)[devCount], CL_QUEUE_PROFILING_ENABLE,
-								     &status);
+                        	params->queue = clCreateCommandQueue( params->context, (params->devices)[devCount], 0, &status);
                         	STATUSCHKMSG("command queue");
 
 				if( params->kernelBuildSpecs == BUILD_USER_DEF_KERNEL ) {

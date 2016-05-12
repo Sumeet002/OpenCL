@@ -1,23 +1,25 @@
-#define FILTER_SIZE 3
-#define IMAGE_W 960
-#define IMAGE_H 540
-__kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout_img_, const __global float* dconv_mat){
+
+__kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout_img_, const __global float* dconv_mat, const int W,const int H, const int size ){
 
 	/*int index = get_global_id(0);
 	dout_img_[index] = dsrc_img_[index];*/
 	
 	int index = get_global_id(0);
+	//int W = 960;
+	//int H = 540;
+	//int size = 3;
+	int center = size/2;
+
 
 	//pass the pixel through the kernel if it can be centered inside it
-	if(index >= IMAGE_W*(FILTER_SIZE-(FILTER_SIZE/2))+FILTER_SIZE/2 &&
-	   index < IMAGE_W*IMAGE_H-IMAGE_W*(FILTER_SIZE-(FILTER_SIZE/2))-FILTER_SIZE/2){
+	if(index >= W*(size-center) + center && index < W*H-W*(size-center)-center){
 		
 		int value=0;
-		for(int y=0; y < FILTER_SIZE ; y++){
-			int yOff = IMAGE_W*(y-(FILTER_SIZE/2));
-            		for(int x=0;x<FILTER_SIZE;x++){
-				int xOff = (x-(FILTER_SIZE/2));
-                		value += dconv_mat[y*FILTER_SIZE+x]*dsrc_img_[index+xOff+yOff];
+		for(int y=0; y < size ; y++){
+			int yOff = W*(y-center);
+            		for(int x=0;x<size;x++){
+				int xOff = (x-center);
+                		value += dconv_mat[y*size+x]*dsrc_img_[index+xOff+yOff];
             		}
         	}
         

@@ -46,7 +46,7 @@ float* createGaussianKernel(uint32_t size,float sigma)
 
 
 void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat, 
-		     int img_sz , int conv_mat_sz, char *deviceName, int deviceNameLen){
+		     int img_sz , int W ,int conv_mat_sz, char *deviceName, int deviceNameLen){
 
 	oclEnvParams params;
 	cl_int status = CL_SUCCESS;
@@ -79,15 +79,17 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
 	
 	//create convolution matrix array
 	cl_mem dconv_mat = clCreateBuffer(params.context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-						conv_mat_sz*sizeof(cl_float),(void*)conv_mat, &status);
+						conv_mat_sz*conv_mat_sz*sizeof(cl_float),(void *)conv_mat, &status);
   	STATUSCHKMSG("i/p memory allocation ");
-	
+
+
+
 	//create output array
       cl_mem dout_img_ = clCreateBuffer(params.context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR,img_sz*sizeof(cl_uchar),(void*)out_img_, &status);
   	STATUSCHKMSG("o/p memory allocation");
 
 
-	//create kernel argument
+	//create kernel arguments
   	
   	status = clSetKernelArg(conv_kernel,0,sizeof(cl_mem), (void*) &dsrc_img_);
   	STATUSCHKMSG("in arg 1 setting");
@@ -96,15 +98,22 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	STATUSCHKMSG("in arg 2 setting");
 	
 	status = clSetKernelArg(conv_kernel,2,sizeof(cl_mem), (void*) &dconv_mat);
-		
 	STATUSCHKMSG("in arg 3 setting");
 
+	status = clSetKernelArg(conv_kernel,3,sizeof(cl_uint), (void*)&W);
+	STATUSCHKMSG("in arg 4 setting");
+	
+	int H= img_sz/W;
+	status = clSetKernelArg(conv_kernel,4,sizeof(cl_uint), (void*)&H);
+	STATUSCHKMSG("in arg 5 setting");
+	
+	status = clSetKernelArg(conv_kernel,5,sizeof(cl_uint), (void*)&conv_mat_sz);
+	STATUSCHKMSG("in arg 6 setting");
+
+
 	// enqueue a kernel run call
-  	size_t globalThreads[] = { NUMTHREAD };       // number of global items in work dimension 
-  	size_t localThreads[] = { GROUP_SIZE }; 	// number of work item per group
-	size_t globalWorkItemSize = img_sz*sizeof(cl_uchar);
-  	//status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, globalThreads, localThreads,0,NULL,NULL);
-	status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, &globalWorkItemSize ,NULL,0,NULL,NULL);	
+	size_t globalWorkItemSize = img_sz;
+  	status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, &globalWorkItemSize ,NULL,0,NULL,NULL);	
 	
   	STATUSCHKMSG("kernel enqueue");
 	
@@ -118,8 +127,6 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	status = clEnqueueReadBuffer(params.queue, dout_img_, CL_TRUE, 0,img_sz*sizeof(cl_uchar),out_img_, 0, NULL, &events[0]);
   	STATUSCHKMSG("read output");
 
-	
- 
 	// wait for read buffer to complete the read of output produce by kernel
   	status = clWaitForEvents(1, &events[0]);
   	STATUSCHKMSG("read event not completed");
@@ -144,10 +151,13 @@ int main(){
 	
 
 	//Resize Image
-	int scale = 2 ;
+	if(src_img.cols > 1080){
+		int scale = 2 ;
+		Size size(src_img.cols/scale,src_img.rows/scale);
+		resize(src_img,src_img,size);
+	}
+	
 	int img_sz;
-	Size size(src_img.cols/scale,src_img.rows/scale);
-	resize(src_img,src_img,size);
 	img_sz = src_img.cols*src_img.rows;
 	
 
@@ -155,21 +165,24 @@ int main(){
 	imshow("Input Image" , src_img);
 	waitKey(30);
 
-	Mat out_img(size,CV_8UC1,Scalar(0));
+	Mat out_img(src_img.size(),CV_8U);
+	cout << src_img.type() << src_img.size() << endl;
 
 	unsigned char *src_img_ = src_img.ptr<unsigned char>(0);
 	unsigned char *out_img_ = out_img.ptr<unsigned char>(0);
 	
 
 	int conv_mat_sz = 3 ;
-	float conv_mat_sigma = 0.5;
+	float conv_mat_sigma = 1;
 	float *conv_mat=(float*)malloc(sizeof(float)*conv_mat_sz*conv_mat_sz);
 	conv_mat=createGaussianKernel(conv_mat_sz,conv_mat_sigma);
-
+	
 
 	char deviceName[BUFFER_SIZE];
     	char deviceNameLen = BUFFER_SIZE;
-	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,conv_mat_sz,deviceName,deviceNameLen);
+
+	
+	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
 
 	
 	
