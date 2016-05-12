@@ -10,10 +10,9 @@ int main(){
 	
 	imshow("Original Image",src_img);
 
-	/*Internally Laplacian uses Gaussian blur first to remove noise, 
-	so this cannot be used as a test to verify the result of only the Laplacian operator*/
-
 	Laplacian( src_img, src_img, CV_8U, 3, 1, 0, BORDER_DEFAULT);
+
+	
 
 	imshow("Laplacian filtered Image",src_img);
 	waitKey(30);
