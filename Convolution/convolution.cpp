@@ -1,6 +1,6 @@
 #include "ocl.h"
 #include <opencv2/opencv.hpp>
-#define KERNEL_SOURCE_PATH "./naive_convolution.cl"
+#define KERNEL_SOURCE_PATH "./naive_convolution2.cl"
 #define PI_ 3.14 
 
 using namespace cv;
@@ -177,19 +177,17 @@ int main(){
 	float *conv_mat=(float*)malloc(sizeof(float)*conv_mat_sz*conv_mat_sz);
 	conv_mat=createGaussianKernel(conv_mat_sz,conv_mat_sigma);
 	
-
+	
 	char deviceName[BUFFER_SIZE];
     	char deviceNameLen = BUFFER_SIZE;
 
-	
 	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
 
-	
-	
 	//Display input Image
 	imshow("Output Image" , out_img);
 	waitKey(30);
 	while(1);
 	
 	return 0;
+
 }
