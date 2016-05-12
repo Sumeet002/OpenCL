@@ -118,7 +118,7 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	status = clEnqueueReadBuffer(params.queue, dout_img_, CL_TRUE, 0,img_sz*sizeof(cl_uchar),out_img_, 0, NULL, &events[0]);
   	STATUSCHKMSG("read output");
 
-	cout << img_sz << endl;
+	
  
 	// wait for read buffer to complete the read of output produce by kernel
   	status = clWaitForEvents(1, &events[0]);
@@ -162,7 +162,7 @@ int main(){
 	
 
 	int conv_mat_sz = 3 ;
-	float conv_mat_sigma = 1.0;
+	float conv_mat_sigma = 0.5;
 	float *conv_mat=(float*)malloc(sizeof(float)*conv_mat_sz*conv_mat_sz);
 	conv_mat=createGaussianKernel(conv_mat_sz,conv_mat_sigma);
 

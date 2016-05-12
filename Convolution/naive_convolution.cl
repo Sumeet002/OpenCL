@@ -8,10 +8,6 @@ __kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout
 	
 	int index = get_global_id(0);
 
-	int fIndex = 0;
-	float sumGRAY = 0.0;
-
-
 	//pass the pixel through the kernel if it can be centered inside it
 	if(index >= IMAGE_W*(FILTER_SIZE-(FILTER_SIZE/2))+FILTER_SIZE/2 &&
 	   index < IMAGE_W*IMAGE_H-IMAGE_W*(FILTER_SIZE-(FILTER_SIZE/2))-FILTER_SIZE/2){

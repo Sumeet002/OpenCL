@@ -162,7 +162,7 @@ int main(){
 	
 
 	int conv_mat_sz = 3 ;
-	float conv_mat_sigma = 1.0;
+	float conv_mat_sigma = 0.5;
 	float *conv_mat=(float*)malloc(sizeof(float)*conv_mat_sz*conv_mat_sz);
 	conv_mat=createGaussianKernel(conv_mat_sz,conv_mat_sigma);
 

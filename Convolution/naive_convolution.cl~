@@ -32,7 +32,4 @@ __kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout
 		dout_img_[index] = dsrc_img_[index];
 	}
 
-
-
-
 }
