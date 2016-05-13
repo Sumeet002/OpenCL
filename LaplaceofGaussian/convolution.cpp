@@ -1,49 +1,9 @@
 #include "ocl.h"
 #include <opencv2/opencv.hpp>
-#define KERNEL_SOURCE_PATH "./naive_convolution2.cl"
+#define KERNEL_SOURCE_PATH "./naive_convolution.cl"
 #define PI_ 3.14 
 
 using namespace cv;
-
-float* createGaussianKernel(uint32_t size,float sigma)
-{
-    float* ret;
-    uint32_t x,y;
-    double center = size/2;
-    float sum = 0;
-    
-    //allocate and create the gaussian kernel
-    ret = (float *)malloc(sizeof(float) * size * size);
-    for(x = 0; x < size; x++)
-    {
-        for(y=0; y < size; y++)
-        {
-            ret[ y*size+x] = exp( (((x-center)*(x-center)+(y-center)*(y-center))/(2.0f*sigma*sigma))*-1.0f ) / (2.0f*PI_*sigma*sigma);
-            sum+=ret[ y*size+x];
-        }
-    }
-
-    //normalize
-    for(x = 0; x < size*size;x++)
-    {
-        ret[x] = ret[x]/sum;
-    }
-
-    //print the kernel so the user can see it
-    printf("The generated Gaussian Kernel is:\n");
-    for(x = 0; x < size; x++)
-    {
-        for(y=0; y < size; y++)
-        {
-            printf("%f ",ret[ y*size+x]);
-        }
-        printf("\n");
-    }
-    printf("\n\n");
-    return ret;
-}
-
-
 
 void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat, 
 		     int img_sz , int W ,int conv_mat_sz, char *deviceName, int deviceNameLen){
@@ -71,22 +31,38 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	conv_kernel = clCreateKernel( params.hProgram, "conv_kernel", &status);
 
 	STATUSCHKMSG("kernel handle");	
-	
-	//create input array
-  	cl_mem dsrc_img_ = clCreateBuffer(params.context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,img_sz*sizeof(cl_uchar),(void*)src_img_, &status);
-  	STATUSCHKMSG("i/p memory allocation ");
 
+	//set image format	
+	cl_image_format clImageFormat;
+	 
+	clImageFormat.image_channel_order = CL_R;
+	clImageFormat.image_channel_data_type = CL_UNORM_INT8;
+
+	// New in OpenCL 1.2, need to create image descriptor.
+    	cl_image_desc clImageDesc;
+    	clImageDesc.image_type = CL_MEM_OBJECT_IMAGE2D;
+    	clImageDesc.image_width = W;
+    	clImageDesc.image_height = (img_sz/W);
+    	clImageDesc.image_row_pitch = 0;
+    	clImageDesc.image_slice_pitch = 0;
+    	clImageDesc.num_mip_levels = 0;
+    	clImageDesc.num_samples = 0;
+    	clImageDesc.buffer = NULL;
+
+	cl_mem dsrc_img_ = clCreateImage(params.context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, &clImageFormat,&clImageDesc,src_img_, &status);
+	STATUSCHKMSG("Src clCreateImage");
+
+	cl_mem dout_img_ = clCreateImage(params.context, CL_MEM_READ_WRITE, &clImageFormat,&clImageDesc,out_img_,&status);
+	STATUSCHKMSG("Out clCreateImage");
 	
+	size_t origin[3] = {0,0,0};
+	size_t region[3] = {W,(img_sz/W),1};
+	cout << img_sz/W << endl;
+
 	//create convolution matrix array
 	cl_mem dconv_mat = clCreateBuffer(params.context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
 						conv_mat_sz*conv_mat_sz*sizeof(cl_float),(void *)conv_mat, &status);
   	STATUSCHKMSG("i/p memory allocation ");
-
-
-
-	//create output array
-      cl_mem dout_img_ = clCreateBuffer(params.context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR,img_sz*sizeof(cl_uchar),(void*)out_img_, &status);
-  	STATUSCHKMSG("o/p memory allocation");
 
 
 	//create kernel arguments
@@ -99,38 +75,34 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
 	
 	status = clSetKernelArg(conv_kernel,2,sizeof(cl_mem), (void*) &dconv_mat);
 	STATUSCHKMSG("in arg 3 setting");
-
-	status = clSetKernelArg(conv_kernel,3,sizeof(cl_uint), (void*)&W);
+	
+	status = clSetKernelArg(conv_kernel,3,sizeof(cl_uint), (void*)&conv_mat_sz);
 	STATUSCHKMSG("in arg 4 setting");
-	
-	int H= img_sz/W;
-	status = clSetKernelArg(conv_kernel,4,sizeof(cl_uint), (void*)&H);
-	STATUSCHKMSG("in arg 5 setting");
-	
-	status = clSetKernelArg(conv_kernel,5,sizeof(cl_uint), (void*)&conv_mat_sz);
-	STATUSCHKMSG("in arg 6 setting");
 
 
 	// enqueue a kernel run call
-	size_t globalWorkItemSize = img_sz;
-  	status = clEnqueueNDRangeKernel(params.queue,conv_kernel,1, NULL, &globalWorkItemSize ,NULL,0,NULL,NULL);	
-	
-  	STATUSCHKMSG("kernel enqueue");
+	size_t GWSize[]={W,(img_sz/W),1};
+  	status = clEnqueueNDRangeKernel(params.queue,conv_kernel,2, NULL, GWSize ,NULL,0,NULL,NULL);	
+	STATUSCHKMSG("kernel enqueue");
 	
 
 	status = clFinish(params.queue);
   	STATUSCHKMSG("clFinish");
 
+	
 	cl_event events[1];
   
 	// read output result
-  	status = clEnqueueReadBuffer(params.queue, dout_img_, CL_TRUE, 0,img_sz*sizeof(cl_uchar),out_img_, 0, NULL, &events[0]);
+  	status = clEnqueueReadImage(params.queue, dout_img_, CL_TRUE, origin,region,0, 0, out_img_, 0,NULL,&events[0]);
   	STATUSCHKMSG("read output");
 
+	
 	// wait for read buffer to complete the read of output produce by kernel
   	status = clWaitForEvents(1, &events[0]);
   	STATUSCHKMSG("read event not completed");
 		
+	
+	
 	clReleaseEvent(events[0]);
 
 	clReleaseKernel(conv_kernel);
@@ -138,7 +110,7 @@ void openCLConvolute(cl_uchar *src_img_ , cl_uchar *out_img_ , float *conv_mat,
   	clReleaseCommandQueue(params.queue);
   	clReleaseContext(params.context);
 	
-	cout << "end" << endl;
+	
 
 
 }//end_of_opencl_routine
@@ -147,7 +119,7 @@ int main(){
 
 	//Input image
 	Mat src_img;
-	src_img = imread("sample.jpg",CV_LOAD_IMAGE_GRAYSCALE);
+	src_img = imread("original.jpg",CV_LOAD_IMAGE_GRAYSCALE);
 	
 
 	//Resize Image
@@ -166,33 +138,30 @@ int main(){
 	waitKey(30);
 
 	Mat out_img(src_img.size(),CV_8U);
-	Mat final_img(src_img.size(),CV_8U);
 	cout << src_img.type() << src_img.size() << endl;
 
 	unsigned char *src_img_ = src_img.ptr<unsigned char>(0);
 	unsigned char *out_img_ = out_img.ptr<unsigned char>(0);
-	unsigned char *final_img_=final_img.ptr<unsigned char>(0);
+	
+	
+	int conv_mat_sz = 5;
+	float conv_mat[25]={0, 0, -1, 0, 0,
+                    0, -1, -2, -1, 0,
+                    -1, -2, 16, -2, -1,
+                    0, -1, -2, -1, 0,
+                    0, 0, -1, 0, 0};
 
-	int conv_mat_sz = 3 ;
-	float conv_mat_sigma = 1;
-	float *gauss_conv_mat=(float*)malloc(sizeof(float)*conv_mat_sz*conv_mat_sz);
-	gauss_conv_mat=createGaussianKernel(conv_mat_sz,conv_mat_sigma);
+
 	
-	
-	float laplace_conv_mat[9] = {0,-1,0,-1,4,-1,0,-1,0};
 	char deviceName[BUFFER_SIZE];
     	char deviceNameLen = BUFFER_SIZE;
 
-	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,gauss_conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
+	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
 
-	//Display input Image
-	imshow("Output Image" , out_img);
-	waitKey(30);
 
-	openCLConvolute((cl_uchar *)out_img_,(cl_uchar *)final_img_,laplace_conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
 	
 	//Display input Image
-	imshow("Final Image" , final_img);
+	imshow("Output Image" , out_img);
 	waitKey(30);
 	while(1);
 	
