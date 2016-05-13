@@ -1,6 +1,6 @@
 #include "ocl.h"
 #include <opencv2/opencv.hpp>
-#define KERNEL_SOURCE_PATH "./naive_convolution2.cl"
+#define KERNEL_SOURCE_PATH "./naive_convolution.cl"
 #define PI_ 3.14 
 
 using namespace cv;

@@ -196,7 +196,7 @@ int main(){
 	openCLConvolute((cl_uchar *)src_img_,(cl_uchar *)out_img_,conv_mat,img_sz,src_img.cols,conv_mat_sz,deviceName,deviceNameLen);
 
 
-	cout << out_img << endl;
+	
 	//Display input Image
 	imshow("Output Image" , out_img);
 	waitKey(30);

@@ -1,33 +1,27 @@
+__constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
-__kernel void conv_kernel(const __global uchar* dsrc_img_ , __global uchar* dout_img_, const __global float* dconv_mat, const int W,const int H, const int size ){
+float FilterValue(__constant const float* filterWeights,
+	const int x, const int y ,const int center)
+{
+	return filterWeights[(x+center) + (y+center)*(center*center + 1)];
+}
 
-	/*int index = get_global_id(0);
-	dout_img_[index] = dsrc_img_[index];*/
-	
-	int index = get_global_id(0);
-	//int W = 960;
-	//int H = 540;
-	//int size = 3;
+
+__kernel void conv_kernel(__read_only image2d_t dsrc_img_ , __write_only image2d_t dout_img_ , __constant float* dconv_mat , const int size ){
+
+
+	const int2 pos = {get_global_id(0), get_global_id(1)};
 	int center = size/2;
 
+    	float4 sum = (float4)(0.0f);
 
-	//pass the pixel through the kernel if it can be centered inside it
-	if(index >= W*(size-center) + center && index < W*H-W*(size-center)-center){
-		
-		int value=0;
-		for(int y=0; y < size ; y++){
-			int yOff = W*(y-center);
-            		for(int x=0;x<size;x++){
-				int xOff = (x-center);
-                		value += dconv_mat[y*size+x]*dsrc_img_[index+xOff+yOff];
-            		}
+    	for(int y = -center; y <= center; y++){
+        	for(int x = -center; x <= center; x++){
+            		sum += FilterValue(dconv_mat, x, y,center)*read_imagef(dsrc_img_, sampler, pos + (int2)(x,y));
         	}
-        
-		dout_img_[index] = value;
-	}
-	//if it's in the edge keep the same value
-	else{
-		dout_img_[index] = dsrc_img_[index];
-	}
+    	}	
+
+    	write_imagef(dout_img_, (int2)(pos.x, pos.y), sum);
+
 
 }
