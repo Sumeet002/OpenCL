@@ -51,8 +51,7 @@ int main(){
      //Central Function
      MIRE_Automatic(Src_Im2ptr,W,h1,SIGMA_MIN,SIGMA_MAX,DELTA);
  
-       
-
+  
     //Removing the Symmetry
      for(int x = 0 ; x < w1 ; x++ ){
         for(int y = 0 ; y < h1 ; y++){

@@ -1,0 +1,176 @@
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+#include <stdio.h>
+#include <list>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include "MIRE.h"
+
+#define ABS(x)  (((x) > 0 ) ? (x) : (-(x)))
+#ifndef M_PI
+/*M_PI is a POSIX definition for Pi*/
+#define M_PI 3.14159265358979323846
+#endif
+
+using namespace std;
+
+void MIRE_Automatic(float *Image,int w1,int h1,int SIGMA_MIN,int SIGMA_MAX,float DELTA){
+
+    float sigma_current;
+    float sigma_best;
+    float TV_current;
+    float* Imtemp = new float[h1*w1];
+    float TV_min;
+
+    //Initialisation
+    sigma_best = SIGMA_MIN;
+    for(int i=0 ; i< w1*h1 ; i++)
+          Imtemp[i] = Image[i];
+   
+    if(SIGMA_MIN == 0){
+         TV_current = TV_column_norm(Imtemp,w1,h1,4*SIGMA_MAX);
+    }
+    else{
+         TV_current = TV_column_norm(MIRE(Imtemp,SIGMA_MIN,w1,h1),w1,h1,4*SIGMA_MAX);
+    }
+
+    TV_min = TV_current;
+    sigma_current  = SIGMA_MIN;
+
+    //Guess the best SIGMA
+    int T = round(((SIGMA_MAX-SIGMA_MIN)/DELTA))+1;
+    
+    #pragma omp for
+    for (int i = 0 ; i<T ; i++){
+        for(int i=0 ; i < w1*h1;i++)
+               Imtemp[i] = Image[i];
+
+        TV_current = TV_column_norm(MIRE(Imtemp,sigma_current,w1,h1),w1,h1,4*SIGMA_MAX);
+        
+        if(TV_current < TV_min){
+            sigma_best = sigma_current;
+            TV_min = TV_current;
+        }
+        sigma_current = sigma_current + DELTA;
+    }
+   
+    delete [] Imtemp;
+ 
+    //Apply mIRE with best SIGMA parameter
+    if(sigma_best != 0)
+         MIRE(Image,sigma_best,w1,h1);
+    printf("SIGMA_BEST: %f\n",sigma_best);
+
+}
+
+float *MIRE(float *Image,float sigma ,int w1 ,int h1){
+
+    std::vector <std::vector<float> > v;
+    std::vector <std::vector<float> > c_sorted;
+    
+    c_sorted = column_sorting(Image,w1,h1);
+    v = target_histogram(c_sorted,w1,h1,sigma);
+
+    int N=round(4*sigma);
+    for(int column=N ; column < w1-N ; column++){
+        //avoiding parts added by mirror symmetry
+        //v is target histogram in sense of midway weighted histogram
+        specify_column(Image,w1,h1,column,v[column-N]);
+        //Giving the column "column" the histogram v
+    }
+    return (Image);
+
+}
+
+float TV_column_norm(float *Image, int w1, int h1,float B){
+
+    float TV=0;
+    for(int column=B ; column<w1-B ; column++){
+        for(int row = 0 ; row < h1 ; row++ ){
+            TV=TV + ABS((Image[row*w1+column+1])-Image[row*w1+column]);
+        }
+    }
+    
+    return (TV);
+}
+
+
+float gaussian(int x , float sigma){
+    return (1/(sigma*sqrt(2*M_PI))*exp(-(x*x)/(2*sigma*sigma)));
+}
+
+
+void specify_column(float *Image, int w1, int h1,int column_current,vector <float> target_values){
+
+    vector <float> column_sorted;
+    for(int i=0; i < h1 ; i++){
+        column_sorted.push_back(Image[i*w1+column_current]);
+    }
+
+    sort(column_sorted.begin(),column_sorted.end());
+
+    for(int i=0 ; i < h1 ; i++){
+       float temp = Image[i*w1+column_current];
+       for(int j =0 ; j< h1 ; j++){
+          if(temp == column_sorted[j]){
+              Image[i*w1+column_current]=target_values[j];
+          }
+        }
+    }
+}
+
+std::vector <std::vector<float> > target_histogram(std::vector <std::vector<float> > V_HISTOS,int w1,int h1, float sigma){
+    
+    std::vector <std::vector<float> > FINAL;
+    int N = round(4*sigma);
+
+    for(int CENTER = N ; CENTER < w1-N ; CENTER ++){
+        vector <float> v;
+        for(int vrow = 0 ; vrow < h1 ; vrow ++){
+            float temp = 0;
+            for (int vcolumn=CENTER-N; vcolumn<CENTER+N+1;vcolumn++){
+                temp=temp+gaussian((CENTER-vcolumn),sigma)
+                     *(V_HISTOS[vcolumn][vrow]);
+            }
+            v.push_back(temp);
+        }
+        FINAL.push_back(v);
+    }
+   
+    return(FINAL);
+
+}
+
+vector <float> histo_column(float *Image,int w1,int h1, int column){
+///  compute the histogram of the column "column" (v contains  sorted columns )
+
+    vector <float> v;
+    for (int row=0 ;row < h1 ; row++){
+        v.push_back(Image[row*w1+column]);
+    }
+    sort (v.begin(), v.end());
+    return(v);
+}
+
+
+std::vector <std::vector<float> > column_sorting(float *Image,int w1,int h1){
+
+    
+   std::vector <std::vector<float> > V_HISTOS;
+// Vectors of vectors (matrix) such that
+//V_HISTOS[i] is the histogram of the column v (which is also a vector)
+    for (int i=0 ; i<w1 ; i++){   //processing all columns in the radius
+        V_HISTOS.push_back(histo_column(Image, w1, h1,  i)); //step 2 is done in histo_column
+    }
+    return(V_HISTOS);
+}
+    
+
+
+     
+
+
+

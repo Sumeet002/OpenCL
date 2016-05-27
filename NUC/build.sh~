@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "OpenCL NUC (Non Uniformity Correction)"
+
+echo "Building the OpenCL NUC example "
+g++ -O2  NUC.cpp `pkg-config --libs opencv` -lOpenCL -o NUC
+
+echo "Building the OpenCV NUC example "
+g++ -O2  ./verify/NUC.cpp `pkg-config --libs opencv` -o NUC_verify
+
+echo "Finished"
